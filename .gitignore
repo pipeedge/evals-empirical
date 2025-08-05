@@ -3,6 +3,7 @@ __pycache__/
 *$py.class
 
 *.so
+.DS_Store
 
 .Python
 build/
@@ -39,4 +40,3 @@ mlr_env/
 
 data/
 logs/
-results/
