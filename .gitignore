@@ -40,3 +40,4 @@ mlr_env/
 
 data/
 logs/
+.DS_Store
