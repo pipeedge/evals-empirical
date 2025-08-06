@@ -859,7 +859,7 @@ class ThematicAnalysisOrchestrator:
         return descriptions.get(source, 'Mixed technical content')
     
     def _write_references_section(self, f, results: Dict[str, Any]):
-        """Write a comprehensive references section"""
+        """Write a comprehensive references section with all data sources"""
         f.write("### Primary Data Sources\n\n")
         
         # Collect unique sources from themes with evidence
@@ -877,6 +877,15 @@ class ThematicAnalysisOrchestrator:
                     source_key = f"{req.get('source', 'Unknown')}|{req.get('source_url', '')}"
                     sources_cited.add(source_key)
         
+        # Add representative sources from all data types (even if LLM analysis failed)
+        if 'summary' in results and 'sources' in results['summary']:
+            # Get sample URLs for each source type from the original data
+            source_samples = self._get_source_samples(results)
+            for source_type, sample_urls in source_samples.items():
+                for url in sample_urls[:3]:  # Show up to 3 examples per source type
+                    source_key = f"{source_type}|{url}"
+                    sources_cited.add(source_key)
+        
         # Write citations
         citation_num = 1
         for source_key in sorted(sources_cited):
@@ -886,9 +895,48 @@ class ThematicAnalysisOrchestrator:
                 f.write(f"{citation_num}. {source_type}: {url}\n")
                 citation_num += 1
         
+        # Add source type summary
+        if 'summary' in results and 'sources' in results['summary']:
+            f.write(f"\n### Source Type Distribution\n\n")
+            total_docs = results['summary']['total_documents']
+            for source_type, count in results['summary']['sources'].items():
+                percentage = (count / total_docs * 100) if total_docs > 0 else 0
+                description = self._get_source_description(source_type)
+                f.write(f"- **{source_type}**: {count} documents ({percentage:.1f}%) - {description}\n")
+        
         f.write(f"\n**Total Sources Analyzed:** {results['summary']['total_documents']}\n")
         f.write(f"**Analysis Methodology:** Mixed-methods MLR approach\n")
         f.write(f"**Data Collection Period:** {results['summary']['analysis_date']}\n")
+    
+    def _get_source_samples(self, results: Dict[str, Any]) -> Dict[str, List[str]]:
+        """Get sample URLs for each source type from the original data"""
+        source_samples = {}
+        
+        # Try to load the original processed data to get sample URLs
+        try:
+            processed_files = [f for f in os.listdir(OUTPUT_CONFIG["processed_data_dir"]) 
+                             if f.startswith('processed_documents_') and f.endswith('.json')]
+            
+            if processed_files:
+                latest_file = sorted(processed_files)[-1]
+                file_path = os.path.join(OUTPUT_CONFIG["processed_data_dir"], latest_file)
+                
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    documents = json.load(f)
+                
+                # Group by source type and collect sample URLs
+                for doc in documents:
+                    source_type = doc.get('source', 'Unknown')
+                    url = doc.get('url', '')
+                    if url and source_type not in source_samples:
+                        source_samples[source_type] = []
+                    if url and len(source_samples.get(source_type, [])) < 5:
+                        source_samples[source_type].append(url)
+                        
+        except Exception as e:
+            logging.warning(f"Could not load source samples: {e}")
+        
+        return source_samples
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
